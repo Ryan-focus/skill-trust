@@ -39,3 +39,30 @@ export type {
   OutputFormat,
   ReporterOptions,
 } from "./types.js";
+
+// AST-based analysis
+export { stripNonCode, analyzeFile, analyzeSkillFiles } from "./ast/index.js";
+export type { ImportInfo, FunctionCallInfo, FileAnalysis } from "./ast/index.js";
+
+// Monorepo support
+export { discoverSkills, verifyAll } from "./monorepo.js";
+export type { MonorepoResult, MonorepoSkillResult } from "./monorepo.js";
+
+// Interactive wizard
+export { runWizard, generateSkillMd } from "./wizard.js";
+
+// External scanner integrations
+export {
+  scanWithCisco,
+  scanWithAguara,
+  createCombinedReport,
+  printCombinedReport,
+  combinedReportToJson,
+} from "./integrations/index.js";
+export type {
+  ExternalScanResult,
+  ExternalFinding,
+  CombinedReport,
+  CiscoScannerOptions,
+  AguaraOptions,
+} from "./integrations/index.js";

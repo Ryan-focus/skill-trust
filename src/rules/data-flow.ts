@@ -2,6 +2,11 @@ import type { Rule, ParsedSkill, Finding, TrustEndpoint } from "../types.js";
 
 /**
  * Extract all URLs from file content, returning line numbers.
+ *
+ * Note: This intentionally scans raw content (including strings) because
+ * data-flow URLs are typically passed as string arguments to HTTP functions
+ * (e.g., requests.post("https://..."))  — stripping strings would remove
+ * the very targets we need to detect.
  */
 function extractUrls(
   content: string

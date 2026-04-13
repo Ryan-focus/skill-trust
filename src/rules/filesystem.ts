@@ -39,7 +39,7 @@ export const filesystemRule: Rule = {
     for (const file of skill.files) {
       // Check write=false
       if (!write) {
-        const matches = scanContent(file.content, WRITE_PATTERNS);
+        const matches = scanContent(file.content, WRITE_PATTERNS, file.language);
         if (matches.length > 0) {
           const first = matches[0];
           findings.push({
