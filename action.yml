@@ -1,0 +1,37 @@
+name: 'skill-trust'
+description: 'Verify transparency declarations in Agent Skills'
+author: 'Raven'
+
+branding:
+  icon: 'shield'
+  color: 'green'
+
+inputs:
+  skill_path:
+    description: 'Path to the skill directory to verify'
+    required: true
+    default: '.'
+  strict:
+    description: 'Treat warnings as errors'
+    required: false
+    default: 'false'
+  format:
+    description: 'Output format: terminal, json, or sarif'
+    required: false
+    default: 'terminal'
+  comment:
+    description: 'Post results as a PR comment'
+    required: false
+    default: 'true'
+
+outputs:
+  result:
+    description: 'Verification result: VERIFIED, PARTIAL, UNDECLARED, or INCONSISTENT'
+  warnings:
+    description: 'Number of warnings found'
+  failures:
+    description: 'Number of failures found'
+
+runs:
+  using: 'node20'
+  main: 'dist/action/index.js'
