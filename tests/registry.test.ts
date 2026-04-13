@@ -27,7 +27,7 @@ describe("getRegistryUrl", () => {
     expect(getRegistryUrl()).toBe("https://registry.agentskills.io");
   });
 
-  it("returns custom URL from env", () => {
+  it("returns custom https URL from env", () => {
     process.env.AGENT_SKILLS_REGISTRY_URL = "https://custom.registry.io";
     expect(getRegistryUrl()).toBe("https://custom.registry.io");
   });
@@ -35,6 +35,47 @@ describe("getRegistryUrl", () => {
   it("strips trailing slashes", () => {
     process.env.AGENT_SKILLS_REGISTRY_URL = "https://custom.registry.io///";
     expect(getRegistryUrl()).toBe("https://custom.registry.io");
+  });
+
+  // SSRF protection tests
+  it("rejects http:// URLs", () => {
+    process.env.AGENT_SKILLS_REGISTRY_URL = "http://insecure.registry.io";
+    expect(() => getRegistryUrl()).toThrow(/must use https/i);
+  });
+
+  it("rejects file:// URLs", () => {
+    process.env.AGENT_SKILLS_REGISTRY_URL = "file:///etc/passwd";
+    expect(() => getRegistryUrl()).toThrow(/must use https/i);
+  });
+
+  it("rejects localhost", () => {
+    process.env.AGENT_SKILLS_REGISTRY_URL = "https://localhost:8080";
+    expect(() => getRegistryUrl()).toThrow(/private/i);
+  });
+
+  it("rejects 127.0.0.1", () => {
+    process.env.AGENT_SKILLS_REGISTRY_URL = "https://127.0.0.1";
+    expect(() => getRegistryUrl()).toThrow(/private/i);
+  });
+
+  it("rejects cloud metadata IP (169.254.169.254)", () => {
+    process.env.AGENT_SKILLS_REGISTRY_URL = "https://169.254.169.254";
+    expect(() => getRegistryUrl()).toThrow(/private/i);
+  });
+
+  it("rejects private 10.x.x.x range", () => {
+    process.env.AGENT_SKILLS_REGISTRY_URL = "https://10.0.0.1";
+    expect(() => getRegistryUrl()).toThrow(/private/i);
+  });
+
+  it("rejects private 192.168.x.x range", () => {
+    process.env.AGENT_SKILLS_REGISTRY_URL = "https://192.168.1.1";
+    expect(() => getRegistryUrl()).toThrow(/private/i);
+  });
+
+  it("rejects invalid URLs", () => {
+    process.env.AGENT_SKILLS_REGISTRY_URL = "not-a-url";
+    expect(() => getRegistryUrl()).toThrow(/Invalid registry URL/i);
   });
 });
 
@@ -53,7 +94,7 @@ describe("lookupSkill", () => {
     vi.restoreAllMocks();
   });
 
-  it("returns skill info on success", async () => {
+  it("returns validated skill info on success", async () => {
     const skillInfo = {
       name: "csv-analyzer",
       description: "Analyze CSV files",
@@ -71,7 +112,10 @@ describe("lookupSkill", () => {
     expect(result).toEqual(skillInfo);
     expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining("/api/v1/skills/csv-analyzer"),
-      expect.objectContaining({ headers: { Accept: "application/json" } }),
+      expect.objectContaining({
+        headers: { Accept: "application/json" },
+        redirect: "error",
+      }),
     );
   });
 
@@ -85,6 +129,24 @@ describe("lookupSkill", () => {
 
     await expect(lookupSkill("nonexistent")).rejects.toThrow(RegistryApiError);
     await expect(lookupSkill("nonexistent")).rejects.toThrow(/404/);
+  });
+
+  it("rejects invalid response schema (missing name)", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ description: "no name field", repository: "x", version: "1" }),
+    });
+
+    await expect(lookupSkill("bad-response")).rejects.toThrow(/missing 'name'/i);
+  });
+
+  it("rejects non-object response", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => "just a string",
+    });
+
+    await expect(lookupSkill("bad-response")).rejects.toThrow(/expected an object/i);
   });
 });
 
@@ -123,7 +185,7 @@ describe("publishResult", () => {
     ).rejects.toThrow("AGENT_SKILLS_REGISTRY_TOKEN");
   });
 
-  it("sends POST request with correct payload", async () => {
+  it("sends POST request with redirect: error", async () => {
     process.env.AGENT_SKILLS_REGISTRY_TOKEN = "test-token-123";
     mockFetch.mockResolvedValueOnce({ ok: true });
 
@@ -133,6 +195,7 @@ describe("publishResult", () => {
     const [url, init] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/v1/skills/csv-analyzer/trust");
     expect(init.method).toBe("POST");
+    expect(init.redirect).toBe("error");
     expect(init.headers.Authorization).toBe("Bearer test-token-123");
 
     const body = JSON.parse(init.body);

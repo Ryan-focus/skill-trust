@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import * as fs from "node:fs";
+import * as path from "node:path";
 import { Command } from "commander";
 import { parseSkill, ParseError } from "./parser.js";
 import { verify } from "./verifier.js";
@@ -7,6 +8,8 @@ import { report } from "./reporter.js";
 import { generateBadgeSvg } from "./badge.js";
 import { lookupSkill, publishResult, RegistryApiError } from "./registry.js";
 import type { OutputFormat } from "./types.js";
+
+const VALID_FORMATS: readonly string[] = ["terminal", "json", "sarif"];
 
 const program = new Command();
 
@@ -31,6 +34,11 @@ program
   .option("--version-tag <version>", "Version tag when publishing to registry", "0.0.0")
   .action(async (skillPath: string, options: { strict: boolean; format: string; verbose: boolean; publish: boolean; versionTag: string }) => {
     try {
+      if (!VALID_FORMATS.includes(options.format)) {
+        console.error(`Error: Invalid format '${options.format}'. Must be one of: ${VALID_FORMATS.join(", ")}`);
+        process.exit(2);
+      }
+
       const skill = await parseSkill(skillPath);
       const result = verify(skill);
 
@@ -95,8 +103,14 @@ program
       const svg = generateBadgeSvg(result.level);
 
       if (options.output) {
-        fs.writeFileSync(options.output, svg, "utf-8");
-        console.log(`Badge written to ${options.output}`);
+        const outputPath = path.resolve(options.output);
+        const cwd = process.cwd();
+        if (!outputPath.startsWith(cwd + path.sep) && outputPath !== cwd) {
+          console.error(`Error: Output path must be within the current directory (${cwd}).`);
+          process.exit(2);
+        }
+        fs.writeFileSync(outputPath, svg, "utf-8");
+        console.log(`Badge written to ${outputPath}`);
       } else {
         console.log(svg);
       }

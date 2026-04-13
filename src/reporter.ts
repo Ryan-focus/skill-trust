@@ -19,6 +19,16 @@ const SEVERITY_ICON: Record<Finding["severity"], string> = {
   info: chalk.blue("INFO"),
 };
 
+/**
+ * Strip ANSI/terminal control characters from untrusted strings
+ * to prevent terminal escape sequence injection.
+ * Preserves normal printable characters, spaces, and common whitespace.
+ */
+function stripControl(str: string): string {
+  // eslint-disable-next-line no-control-regex
+  return str.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "");
+}
+
 function reportTerminal(
   result: VerificationResult,
   verbose: boolean
@@ -28,7 +38,7 @@ function reportTerminal(
   console.log();
   console.log(`┌${border}┐`);
   console.log(`│  ${"skill-trust verification report".padEnd(48)}│`);
-  console.log(`│  Skill: ${result.skill.padEnd(40)}│`);
+  console.log(`│  Skill: ${stripControl(result.skill).padEnd(40)}│`);
   console.log(
     `│  Status: ${LEVEL_BADGE[result.level]}${" ".repeat(
       Math.max(0, 39 - result.level.length)
@@ -41,10 +51,10 @@ function reportTerminal(
   } else {
     for (const f of result.findings) {
       const icon = SEVERITY_ICON[f.severity];
-      const loc = f.file ? ` (${f.file}${f.line ? `:${f.line}` : ""})` : "";
-      console.log(`│  ${icon}  ${f.message}${loc}`);
+      const loc = f.file ? ` (${stripControl(f.file)}${f.line ? `:${f.line}` : ""})` : "";
+      console.log(`│  ${icon}  ${stripControl(f.message)}${loc}`);
       if (verbose && f.declared) {
-        console.log(`│        declared=${f.declared}, actual=${f.actual}`);
+        console.log(`│        declared=${stripControl(f.declared)}, actual=${stripControl(f.actual ?? "")}`);
       }
     }
   }

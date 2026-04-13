@@ -201,6 +201,33 @@ export function validateTrust(raw: unknown): TrustDeclaration {
 }
 
 // ---------------------------------------------------------------------------
+// Security limits
+// ---------------------------------------------------------------------------
+
+/** Maximum file size that will be read (10 MB). */
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+/** Maximum SKILL.md file size (1 MB). */
+const MAX_SKILL_MD_SIZE = 1 * 1024 * 1024;
+
+/**
+ * Guard against symlinks and oversized files before reading.
+ * Returns the file content if safe, or throws a ParseError.
+ */
+function safeReadFile(filePath: string, maxSize: number): string {
+  const stat = fs.lstatSync(filePath);
+  if (stat.isSymbolicLink()) {
+    throw new ParseError(`Symlink detected at ${filePath} — refusing to follow for security`);
+  }
+  if (stat.size > maxSize) {
+    throw new ParseError(
+      `File ${filePath} is ${stat.size} bytes, exceeding the ${maxSize} byte limit`,
+    );
+  }
+  return fs.readFileSync(filePath, "utf-8");
+}
+
+// ---------------------------------------------------------------------------
 // File scanning
 // ---------------------------------------------------------------------------
 
@@ -219,6 +246,7 @@ const CODE_EXTENSIONS = new Set([
 /**
  * Collect all script / code files from the skill directory.
  * Scans recursively, skipping node_modules, .git, and dist directories.
+ * Rejects symlinks and files exceeding MAX_FILE_SIZE.
  */
 async function scanFiles(skillDir: string): Promise<SkillFile[]> {
   const patterns = ["**/*.py", "**/*.js", "**/*.mjs", "**/*.cjs", "**/*.ts", "**/*.mts", "**/*.cts", "**/*.sh", "**/*.bash"];
@@ -233,7 +261,7 @@ async function scanFiles(skillDir: string): Promise<SkillFile[]> {
   const files: SkillFile[] = [];
   for (const rel of matches.sort()) {
     const abs = path.join(skillDir, rel);
-    const content = fs.readFileSync(abs, "utf-8");
+    const content = safeReadFile(abs, MAX_FILE_SIZE);
     files.push({
       path: abs,
       relativePath: rel,
@@ -264,7 +292,7 @@ export async function parseSkill(skillDir: string): Promise<ParsedSkill> {
     throw new ParseError(`SKILL.md not found in ${resolvedDir}`);
   }
 
-  const raw = fs.readFileSync(skillMdPath, "utf-8");
+  const raw = safeReadFile(skillMdPath, MAX_SKILL_MD_SIZE);
   const { data: frontmatter } = matter(raw);
 
   const name = typeof frontmatter.name === "string" ? frontmatter.name : "";

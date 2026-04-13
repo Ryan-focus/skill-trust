@@ -8,10 +8,13 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import * as crypto from "node:crypto";
 import { parseSkill } from "../parser.js";
 import { verify } from "../verifier.js";
 import { report } from "../reporter.js";
 import type { OutputFormat, VerificationResult } from "../types.js";
+
+const VALID_FORMATS: readonly string[] = ["terminal", "json", "sarif"];
 
 // ---------------------------------------------------------------------------
 // GitHub Actions helpers
@@ -25,13 +28,18 @@ function getInput(name: string, required = false): string {
   return val;
 }
 
+/**
+ * Set an output variable using the delimiter-based multiline-safe format.
+ * https://github.com/actions/toolkit/issues/403
+ */
 function setOutput(name: string, value: string): void {
   const outputFile = process.env.GITHUB_OUTPUT;
   if (outputFile) {
-    fs.appendFileSync(outputFile, `${name}=${value}\n`);
-  } else {
-    // Fallback for local testing
-    console.log(`::set-output name=${name}::${value}`);
+    const delimiter = `ghadelimiter_${crypto.randomUUID()}`;
+    fs.appendFileSync(
+      outputFile,
+      `${name}<<${delimiter}\n${value}\n${delimiter}\n`,
+    );
   }
 }
 
@@ -40,6 +48,20 @@ function writeSummary(markdown: string): void {
   if (summaryFile) {
     fs.appendFileSync(summaryFile, markdown + "\n");
   }
+}
+
+/**
+ * Escape a string for safe inclusion in a GitHub Markdown table cell.
+ * Prevents Markdown/HTML injection.
+ */
+function escapeMd(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\|/g, "&#124;")
+    .replace(/\n/g, " ")
+    .replace(/\r/g, "");
 }
 
 function formatSummaryMarkdown(result: VerificationResult): string {
@@ -53,9 +75,9 @@ function formatSummaryMarkdown(result: VerificationResult): string {
   const emoji = levelEmoji[result.level] ?? "❓";
   const lines: string[] = [];
 
-  lines.push(`## ${emoji} skill-trust: ${result.level}`);
+  lines.push(`## ${emoji} skill-trust: ${escapeMd(result.level)}`);
   lines.push("");
-  lines.push(`**Skill:** ${result.skill}`);
+  lines.push(`**Skill:** ${escapeMd(result.skill)}`);
   lines.push("");
 
   if (result.findings.length === 0) {
@@ -65,8 +87,8 @@ function formatSummaryMarkdown(result: VerificationResult): string {
     lines.push("|----------|------|---------|----------|");
     for (const f of result.findings) {
       const icon = f.severity === "error" ? "❌" : f.severity === "warning" ? "⚠️" : "ℹ️";
-      const loc = f.file ? `${f.file}${f.line ? `:${f.line}` : ""}` : "-";
-      lines.push(`| ${icon} ${f.severity} | ${f.rule} | ${f.message} | ${loc} |`);
+      const loc = f.file ? `${escapeMd(f.file)}${f.line ? `:${f.line}` : ""}` : "-";
+      lines.push(`| ${icon} ${escapeMd(f.severity)} | ${escapeMd(f.rule)} | ${escapeMd(f.message)} | ${loc} |`);
     }
   }
 
@@ -83,6 +105,23 @@ function formatSummaryMarkdown(result: VerificationResult): string {
 }
 
 // ---------------------------------------------------------------------------
+// Path validation
+// ---------------------------------------------------------------------------
+
+/**
+ * Validate that the resolved skill path is within the repository root
+ * (defaults to GITHUB_WORKSPACE or cwd).
+ */
+function validateSkillPath(resolvedPath: string): void {
+  const repoRoot = path.resolve(process.env.GITHUB_WORKSPACE ?? process.cwd());
+  if (!resolvedPath.startsWith(repoRoot + path.sep) && resolvedPath !== repoRoot) {
+    throw new Error(
+      `skill_path must be within the repository (${repoRoot}), got: ${resolvedPath}`,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -90,9 +129,18 @@ async function run(): Promise<void> {
   try {
     const skillPath = getInput("skill_path", true);
     const strict = getInput("strict") === "true";
-    const format = (getInput("format") || "terminal") as OutputFormat;
+    const formatRaw = getInput("format") || "terminal";
+
+    if (!VALID_FORMATS.includes(formatRaw)) {
+      throw new Error(
+        `Invalid format '${formatRaw}'. Must be one of: ${VALID_FORMATS.join(", ")}`,
+      );
+    }
+    const format = formatRaw as OutputFormat;
 
     const resolvedPath = path.resolve(skillPath);
+    validateSkillPath(resolvedPath);
+
     const skill = await parseSkill(resolvedPath);
     const result = verify(skill);
 
@@ -115,7 +163,9 @@ async function run(): Promise<void> {
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`::error::${message}`);
+    // Sanitize error output — strip control characters
+    const safe = message.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, "");
+    console.error(`::error::${safe}`);
     process.exitCode = 1;
   }
 }
