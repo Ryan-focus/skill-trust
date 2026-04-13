@@ -66,6 +66,72 @@ function reportJson(result: VerificationResult): void {
 }
 
 /**
+ * Build a SARIF 2.1.0 log object from the verification result.
+ * https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html
+ */
+function buildSarif(result: VerificationResult): object {
+  const severityToLevel: Record<Finding["severity"], string> = {
+    error: "error",
+    warning: "warning",
+    info: "note",
+  };
+
+  // Collect unique rule IDs
+  const ruleIds = [...new Set(result.findings.map((f) => f.rule))];
+  const rules = ruleIds.map((id) => ({
+    id,
+    shortDescription: { text: id },
+  }));
+
+  const results = result.findings.map((f) => {
+    const sarifResult: Record<string, unknown> = {
+      ruleId: f.rule,
+      level: severityToLevel[f.severity],
+      message: { text: f.message },
+    };
+
+    if (f.file) {
+      sarifResult.locations = [
+        {
+          physicalLocation: {
+            artifactLocation: { uri: f.file },
+            ...(f.line
+              ? { region: { startLine: f.line } }
+              : {}),
+          },
+        },
+      ];
+    }
+
+    return sarifResult;
+  });
+
+  return {
+    $schema: "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
+    version: "2.1.0",
+    runs: [
+      {
+        tool: {
+          driver: {
+            name: "skill-trust",
+            version: "0.1.0",
+            informationUri: "https://github.com/Ryan-focus/skill-trust",
+            rules,
+          },
+        },
+        results,
+      },
+    ],
+  };
+}
+
+function reportSarif(result: VerificationResult): void {
+  console.log(JSON.stringify(buildSarif(result), null, 2));
+}
+
+export { buildSarif };
+
+/**
  * Output the verification result in the requested format.
  */
 export function report(
@@ -78,6 +144,9 @@ export function report(
   switch (format) {
     case "json":
       reportJson(result);
+      break;
+    case "sarif":
+      reportSarif(result);
       break;
     case "terminal":
     default:
