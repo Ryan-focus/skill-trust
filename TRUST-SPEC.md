@@ -12,7 +12,7 @@ The `skill-trust` verifier then **compares these declarations against the skill'
 
 > "Trust is not about scanning for malice — it's about demanding transparency."
 
-Existing tools (Cisco skill-scanner, Aguara, ClawSecure) scan skills for known attack patterns. `skill-trust` takes a fundamentally different approach:
+Existing tools (Cisco Skill Scanner, Aguara, Snyk Agent Scan, ClawSecure) scan skills for known attack patterns — prompt injection, data exfiltration, malware payloads. `skill-trust` takes a fundamentally different, complementary approach:
 
 1. **Declaration-first**: Skill authors explicitly state what their skill does
 2. **Verification**: Automated tooling checks if the code matches the declarations
