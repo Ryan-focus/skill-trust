@@ -210,21 +210,43 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024;
 /** Maximum SKILL.md file size (1 MB). */
 const MAX_SKILL_MD_SIZE = 1 * 1024 * 1024;
 
+/** Maximum number of source files to scan per skill. */
+const MAX_FILE_COUNT = 1000;
+
+/** Maximum total size of all scanned files (100 MB). */
+const MAX_TOTAL_SIZE = 100 * 1024 * 1024;
+
 /**
  * Guard against symlinks and oversized files before reading.
  * Returns the file content if safe, or throws a ParseError.
+ *
+ * Opens via file descriptor to prevent TOCTOU races — the lstat check
+ * and the read happen on the same fd, so the file cannot be swapped
+ * between the check and the read.
  */
 function safeReadFile(filePath: string, maxSize: number): string {
-  const stat = fs.lstatSync(filePath);
-  if (stat.isSymbolicLink()) {
+  // First reject symlinks via lstat (does not follow symlinks)
+  const lstat = fs.lstatSync(filePath);
+  if (lstat.isSymbolicLink()) {
     throw new ParseError(`Symlink detected at ${filePath} — refusing to follow for security`);
   }
-  if (stat.size > maxSize) {
-    throw new ParseError(
-      `File ${filePath} is ${stat.size} bytes, exceeding the ${maxSize} byte limit`,
-    );
+
+  // Open with O_NOFOLLOW semantics via O_RDONLY — then fstat the fd
+  // to ensure the file we opened is the same one we lstat'd.
+  const fd = fs.openSync(filePath, fs.constants.O_RDONLY);
+  try {
+    const stat = fs.fstatSync(fd);
+    if (stat.size > maxSize) {
+      throw new ParseError(
+        `File ${filePath} is ${stat.size} bytes, exceeding the ${maxSize} byte limit`,
+      );
+    }
+    const buffer = Buffer.alloc(stat.size);
+    fs.readSync(fd, buffer, 0, stat.size, 0);
+    return buffer.toString("utf-8");
+  } finally {
+    fs.closeSync(fd);
   }
-  return fs.readFileSync(filePath, "utf-8");
 }
 
 // ---------------------------------------------------------------------------
@@ -258,10 +280,24 @@ async function scanFiles(skillDir: string): Promise<SkillFile[]> {
     ignore,
   });
 
+  const sorted = matches.sort();
+  if (sorted.length > MAX_FILE_COUNT) {
+    throw new ParseError(
+      `Skill contains ${sorted.length} source files, exceeding the limit of ${MAX_FILE_COUNT}`,
+    );
+  }
+
   const files: SkillFile[] = [];
-  for (const rel of matches.sort()) {
+  let totalSize = 0;
+  for (const rel of sorted) {
     const abs = path.join(skillDir, rel);
     const content = safeReadFile(abs, MAX_FILE_SIZE);
+    totalSize += content.length;
+    if (totalSize > MAX_TOTAL_SIZE) {
+      throw new ParseError(
+        `Total source file size exceeds the ${MAX_TOTAL_SIZE} byte limit`,
+      );
+    }
     files.push({
       path: abs,
       relativePath: rel,

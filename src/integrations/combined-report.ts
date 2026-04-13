@@ -90,6 +90,15 @@ function computeOverallRisk(
 // Terminal output
 // ---------------------------------------------------------------------------
 
+/**
+ * Strip terminal control characters from untrusted strings
+ * to prevent terminal escape sequence injection.
+ */
+function stripControl(str: string): string {
+  // eslint-disable-next-line no-control-regex
+  return str.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "");
+}
+
 const RISK_COLOR: Record<string, (s: string) => string> = {
   low: chalk.green,
   medium: chalk.yellow,
@@ -106,7 +115,7 @@ export function printCombinedReport(report: CombinedReport): void {
   console.log();
   console.log(`┌${border}┐`);
   console.log(`│  ${"COMBINED SECURITY REPORT".padEnd(58)}│`);
-  console.log(`│  Skill: ${report.skill.padEnd(50)}│`);
+  console.log(`│  Skill: ${stripControl(report.skill).padEnd(50)}│`);
   console.log(`├${border}┤`);
 
   // Trust verification section
@@ -148,8 +157,8 @@ export function printCombinedReport(report: CombinedReport): void {
             : f.severity === "medium"
               ? chalk.yellow
               : chalk.gray;
-        const loc = f.file ? ` (${f.file}${f.line ? `:${f.line}` : ""})` : "";
-        console.log(`│      ${sevColor(f.severity.toUpperCase())} ${f.title}${loc}`);
+        const loc = f.file ? ` (${stripControl(f.file)}${f.line ? `:${f.line}` : ""})` : "";
+        console.log(`│      ${sevColor(f.severity.toUpperCase())} ${stripControl(f.title)}${loc}`);
       }
       if (scan.findings.length > 3) {
         console.log(
