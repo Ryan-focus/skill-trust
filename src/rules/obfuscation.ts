@@ -21,13 +21,13 @@ const OBFUSCATION_PATTERNS: PatternDef[] = [
   },
   // hex-encoded strings
   {
-    regex: /\\x[0-9a-fA-F]{2}.*\\x[0-9a-fA-F]{2}/,
+    regex: /\\x[0-9a-fA-F]{2}[^\\]*\\x[0-9a-fA-F]{2}/,
     id: "hex-string",
     label: "hex-encoded string",
   },
   // unicode escape sequences (potential obfuscation)
   {
-    regex: /\\u[0-9a-fA-F]{4}.*\\u[0-9a-fA-F]{4}/,
+    regex: /\\u[0-9a-fA-F]{4}[^\\]*\\u[0-9a-fA-F]{4}/,
     id: "unicode-escape",
     label: "unicode-escaped string",
   },

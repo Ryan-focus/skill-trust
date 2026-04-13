@@ -20,7 +20,7 @@ const WRITE_PATTERNS: PatternDef[] = [
  * Patterns that indicate writing to paths outside the declared scope.
  * We look for absolute paths that aren't relative output paths.
  */
-const SYSTEM_PATH_REGEX = /["'](\/tmp|\/etc|\/var|\/usr|\/root|\/home)\b[^"']*/g;
+const SYSTEM_PATH_REGEX = /["'](\/tmp|\/etc|\/var|\/usr|\/root|\/home)\b[^"']{0,256}/g;
 const PARENT_TRAVERSAL_REGEX = /\.\.\//;
 
 export const filesystemRule: Rule = {

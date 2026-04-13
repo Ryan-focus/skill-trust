@@ -141,21 +141,25 @@ See the full [Trust Declaration Specification](./TRUST-SPEC.md) for details.
 ```
 skill-trust/
 ├── src/
-│   ├── index.ts              # CLI entry point
+│   ├── cli.ts                # CLI entry point (verify, badge, lookup)
 │   ├── parser.ts             # SKILL.md frontmatter parser
-│   ├── scanner.ts            # Code scanner (AST-based)
+│   ├── verifier.ts           # Core verification engine
 │   ├── rules/
+│   │   ├── index.ts          # Rule registry
 │   │   ├── network.ts        # Network consistency rule
 │   │   ├── filesystem.ts     # Filesystem scope rule
 │   │   ├── shell.ts          # Shell consistency rule
 │   │   ├── environment.ts    # Environment access rule
 │   │   ├── data-flow.ts      # Data exfiltration rule
-│   │   └── obfuscation.ts    # Obfuscation detection rule
+│   │   ├── obfuscation.ts    # Obfuscation detection rule
+│   │   └── utils.ts          # Shared rule utilities
 │   ├── reporter.ts           # Output formatting (terminal, JSON, SARIF)
+│   ├── badge.ts              # Trust badge SVG generator
+│   ├── registry.ts           # Agent Skills registry integration
+│   ├── action/
+│   │   └── index.ts          # GitHub Action entry point
 │   └── types.ts              # TypeScript type definitions
-├── action/
-│   ├── action.yml            # GitHub Action metadata
-│   └── index.ts              # Action entry point
+├── action.yml                # GitHub Action metadata
 ├── examples/
 │   ├── trusted-skill/        # Example skill with trust declarations
 │   └── untrusted-skill/      # Example skill without declarations
@@ -169,12 +173,12 @@ skill-trust/
 ## Roadmap
 
 - [x] Trust declaration specification
-- [ ] Core verification engine
-- [ ] CLI tool (`npx skill-trust verify`)
-- [ ] GitHub Action
-- [ ] SARIF output for GitHub Code Scanning
-- [ ] Trust badge generator
-- [ ] Integration with Agent Skills registry
+- [x] Core verification engine
+- [x] CLI tool (`npx skill-trust verify`)
+- [x] GitHub Action
+- [x] SARIF output for GitHub Code Scanning
+- [x] Trust badge generator
+- [x] Integration with Agent Skills registry
 
 ## Contributing
 
