@@ -80,6 +80,7 @@ export async function scanWithAguara(
         Accept: "application/json",
       },
       signal: AbortSignal.timeout(opts.timeout ?? 30_000),
+      redirect: "error",
     }
   );
 
@@ -89,8 +90,68 @@ export async function scanWithAguara(
     );
   }
 
-  const data = (await response.json()) as AguaraAnalysisResponse;
-  return normalizeAguaraResult(data);
+  const data: unknown = await response.json();
+  const validated = validateAguaraResponse(data);
+  return normalizeAguaraResult(validated);
+}
+
+// ---------------------------------------------------------------------------
+// Response validation
+// ---------------------------------------------------------------------------
+
+function isObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function validateAguaraResponse(data: unknown): AguaraAnalysisResponse {
+  if (!isObject(data)) {
+    throw new Error("Invalid Aguara API response: expected an object");
+  }
+  if (typeof data.analysis_id !== "string") {
+    throw new Error("Invalid Aguara API response: missing analysis_id");
+  }
+  if (typeof data.status !== "string") {
+    throw new Error("Invalid Aguara API response: missing status");
+  }
+  if (typeof data.risk_score !== "number") {
+    throw new Error("Invalid Aguara API response: missing risk_score");
+  }
+  if (typeof data.risk_level !== "string") {
+    throw new Error("Invalid Aguara API response: missing risk_level");
+  }
+  if (!Array.isArray(data.issues)) {
+    throw new Error("Invalid Aguara API response: missing issues array");
+  }
+  const issues: AguaraIssue[] = data.issues.map((issue: unknown, i: number) => {
+    if (!isObject(issue)) {
+      throw new Error(`Invalid Aguara API response: issues[${i}] is not an object`);
+    }
+    const location = isObject(issue.location)
+      ? {
+          file: typeof issue.location.file === "string" ? issue.location.file : "",
+          line: typeof issue.location.line === "number" ? issue.location.line : undefined,
+        }
+      : undefined;
+    return {
+      issue_id: typeof issue.issue_id === "string" ? issue.issue_id : "",
+      type: typeof issue.type === "string" ? issue.type : "",
+      severity: typeof issue.severity === "string" ? issue.severity : "info",
+      summary: typeof issue.summary === "string" ? issue.summary : "",
+      detail: typeof issue.detail === "string" ? issue.detail : "",
+      location,
+      fix_suggestion: typeof issue.fix_suggestion === "string" ? issue.fix_suggestion : undefined,
+    } as AguaraIssue;
+  });
+
+  return {
+    analysis_id: data.analysis_id as string,
+    status: data.status as AguaraAnalysisResponse["status"],
+    risk_score: data.risk_score as number,
+    risk_level: data.risk_level as AguaraAnalysisResponse["risk_level"],
+    issues,
+    analyzed_at: typeof data.analyzed_at === "string" ? data.analyzed_at : "",
+    engine_version: typeof data.engine_version === "string" ? data.engine_version : "",
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -134,13 +195,17 @@ function validateUrl(urlStr: string): void {
     throw new Error("Aguara API URL must use HTTPS");
   }
 
+  // Block private / link-local IPs to prevent SSRF
   const host = parsed.hostname;
   if (
     host === "localhost" ||
+    host === "0.0.0.0" ||
+    host === "::1" ||
     host.startsWith("127.") ||
     host.startsWith("10.") ||
     host.startsWith("192.168.") ||
-    host === "::1"
+    host.startsWith("169.254.") ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host)
   ) {
     throw new Error("Aguara API URL must not point to a private address");
   }

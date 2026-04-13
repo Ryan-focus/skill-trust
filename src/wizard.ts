@@ -97,7 +97,14 @@ export async function runWizard(targetDir: string): Promise<string> {
 
     const answers = await collectAnswers(rl);
     const content = generateSkillMd(answers);
-    const outputPath = path.join(path.resolve(targetDir), "SKILL.md");
+    const resolvedDir = path.resolve(targetDir);
+    const cwd = process.cwd();
+    if (!resolvedDir.startsWith(cwd + path.sep) && resolvedDir !== cwd) {
+      throw new Error(
+        `Target directory must be within the current working directory (${cwd}).`
+      );
+    }
+    const outputPath = path.join(resolvedDir, "SKILL.md");
 
     if (fs.existsSync(outputPath)) {
       const overwrite = await askYesNo(

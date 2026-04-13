@@ -75,6 +75,7 @@ export async function scanWithCisco(
       Accept: "application/json",
     },
     signal: AbortSignal.timeout(opts.timeout ?? 30_000),
+    redirect: "error",
   });
 
   if (!response.ok) {
@@ -83,8 +84,60 @@ export async function scanWithCisco(
     );
   }
 
-  const data = (await response.json()) as CiscoScanResponse;
-  return normalizeCiscoResult(data);
+  const data: unknown = await response.json();
+  const validated = validateCiscoResponse(data);
+  return normalizeCiscoResult(validated);
+}
+
+// ---------------------------------------------------------------------------
+// Response validation
+// ---------------------------------------------------------------------------
+
+function isObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function validateCiscoResponse(data: unknown): CiscoScanResponse {
+  if (!isObject(data)) {
+    throw new Error("Invalid Cisco API response: expected an object");
+  }
+  if (typeof data.scan_id !== "string") {
+    throw new Error("Invalid Cisco API response: missing scan_id");
+  }
+  if (typeof data.status !== "string") {
+    throw new Error("Invalid Cisco API response: missing status");
+  }
+  if (typeof data.risk_level !== "string") {
+    throw new Error("Invalid Cisco API response: missing risk_level");
+  }
+  if (!Array.isArray(data.findings)) {
+    throw new Error("Invalid Cisco API response: missing findings array");
+  }
+  // Validate each finding is an object with expected string fields
+  const findings: CiscoFinding[] = data.findings.map((f: unknown, i: number) => {
+    if (!isObject(f)) {
+      throw new Error(`Invalid Cisco API response: findings[${i}] is not an object`);
+    }
+    return {
+      id: typeof f.id === "string" ? f.id : "",
+      category: typeof f.category === "string" ? f.category : "",
+      severity: typeof f.severity === "string" ? f.severity : "info",
+      title: typeof f.title === "string" ? f.title : "",
+      description: typeof f.description === "string" ? f.description : "",
+      file_path: typeof f.file_path === "string" ? f.file_path : undefined,
+      line_number: typeof f.line_number === "number" ? f.line_number : undefined,
+      recommendation: typeof f.recommendation === "string" ? f.recommendation : undefined,
+    } as CiscoFinding;
+  });
+
+  return {
+    scan_id: data.scan_id as string,
+    status: data.status as CiscoScanResponse["status"],
+    risk_level: data.risk_level as CiscoScanResponse["risk_level"],
+    findings,
+    scanned_at: typeof data.scanned_at === "string" ? data.scanned_at : "",
+    scanner_version: typeof data.scanner_version === "string" ? data.scanner_version : "",
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -128,14 +181,17 @@ function validateUrl(urlStr: string): void {
     throw new Error("Cisco API URL must use HTTPS");
   }
 
-  // Block private IPs
+  // Block private / link-local IPs to prevent SSRF
   const host = parsed.hostname;
   if (
     host === "localhost" ||
+    host === "0.0.0.0" ||
+    host === "::1" ||
     host.startsWith("127.") ||
     host.startsWith("10.") ||
     host.startsWith("192.168.") ||
-    host === "::1"
+    host.startsWith("169.254.") ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host)
   ) {
     throw new Error("Cisco API URL must not point to a private address");
   }
