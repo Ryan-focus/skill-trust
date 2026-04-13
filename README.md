@@ -66,6 +66,15 @@ npx skill-trust verify ./path/to/skill --format json
 # Output as SARIF for GitHub Code Scanning
 npx skill-trust verify ./path/to/skill --format sarif
 
+# Verify all skills in a monorepo
+npx skill-trust verify-all ./path/to/monorepo
+
+# Generate a trust declaration interactively
+npx skill-trust init ./my-skill
+
+# Run with external scanner integration
+npx skill-trust verify ./path/to/skill --scan cisco,aguara
+
 # Generate a trust badge
 npx skill-trust badge ./path/to/skill > badge.svg
 
@@ -181,16 +190,27 @@ skill-trust is **complementary** to existing security tools — it addresses a g
 ```
 skill-trust/
 ├── src/
-│   ├── cli.ts                # CLI entry point (verify, badge, lookup)
+│   ├── cli.ts                # CLI entry point (verify, verify-all, init, badge, lookup)
 │   ├── parser.ts             # SKILL.md frontmatter parser & validator
 │   ├── verifier.ts           # Core verification engine
 │   ├── reporter.ts           # Output formatting (terminal, JSON, SARIF)
 │   ├── badge.ts              # Trust badge SVG generator
 │   ├── registry.ts           # Agent Skills registry integration
+│   ├── monorepo.ts           # Multi-skill discovery & batch verification
+│   ├── wizard.ts             # Interactive trust declaration generator
 │   ├── types.ts              # TypeScript type definitions
+│   ├── index.ts              # Public API exports
+│   ├── ast/                  # AST-based code analysis
+│   │   ├── context.ts        # Strips comments/strings for accurate scanning
+│   │   └── analyzer.ts       # Extracts imports, function calls
+│   ├── integrations/         # External scanner adapters
+│   │   ├── cisco.ts          # Cisco Skill Scanner integration
+│   │   ├── aguara.ts         # Aguara integration
+│   │   └── combined-report.ts  # Merged trust + threat reports
 │   ├── action/
 │   │   └── index.ts          # GitHub Action entry point
 │   └── rules/                # Verification rule implementations
+│       ├── utils.ts           # AST-aware pattern scanning utilities
 │       ├── network.ts        # Network access consistency
 │       ├── filesystem.ts     # File write scope validation
 │       ├── shell.ts          # Shell execution consistency
@@ -201,6 +221,9 @@ skill-trust/
 ├── examples/
 │   ├── trusted-skill/        # Example: CSV analyzer with proper declarations
 │   └── untrusted-skill/      # Example: text formatter with intentional violations
+├── CLAUDE.md                 # AI agent guide (Claude Code)
+├── .cursorrules              # AI agent guide (Cursor)
+├── .github/AGENTS.md         # AI agent guide (GitHub Copilot)
 ├── action.yml                # GitHub Action metadata
 ├── TRUST-SPEC.md             # Trust declaration specification (v0.1.0)
 ├── CONTRIBUTING.md           # Contribution guidelines
@@ -216,10 +239,26 @@ skill-trust/
 - [x] SARIF output for GitHub Code Scanning
 - [x] Trust badge SVG generator
 - [x] Agent Skills registry integration
-- [ ] AST-based analysis (beyond regex pattern matching)
-- [ ] Monorepo support (multiple skills per repo)
-- [ ] Interactive wizard for generating trust declarations
-- [ ] Integration with Cisco Skill Scanner & Aguara for combined reports
+- [x] AST-based analysis — context-aware scanning that strips comments/strings to eliminate false positives
+- [x] Monorepo support — `verify-all` command recursively discovers and verifies multiple skills
+- [x] Interactive wizard — `init` command guides users through generating trust declarations
+- [x] Integration with Cisco Skill Scanner & Aguara — `--scan cisco,aguara` for combined reports
+
+## For AI Agents — Fork & Extend
+
+This repo is designed to be immediately productive for AI agents:
+
+| File | Agent | Purpose |
+|------|-------|---------|
+| `CLAUDE.md` | Claude Code | Full architecture guide, extension patterns, conventions |
+| `.cursorrules` | Cursor | Project rules, tech stack, do/don't |
+| `.github/AGENTS.md` | GitHub Copilot | Build/test/extend instructions |
+
+**Why agents love this repo:**
+- **Strict TypeScript** — `src/types.ts` defines the entire data model; AI reads types more accurately than comments
+- **Modular rules** — each rule is an independent module implementing the `Rule` interface; swap or add rules without touching other code
+- **Adapter pattern** — integrations follow a consistent pattern (`src/integrations/cisco.ts`); agents can add new scanners by copying the template
+- **Comprehensive tests** — 125+ tests with helpers (`makeSkill()`, `baseTrust()`) that agents can reuse immediately
 
 ## Contributing
 
