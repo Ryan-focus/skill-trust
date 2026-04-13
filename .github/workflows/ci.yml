@@ -37,5 +37,16 @@ jobs:
           node dist/cli.js verify examples/trusted-skill --format json
           node dist/cli.js verify examples/untrusted-skill --format json || true
 
+      - name: Bundle action
+        run: npm run build:action
+
+      - name: Verify action bundle is up to date
+        run: |
+          if git diff --exit-code dist/action-bundle/; then
+            echo "Bundle is up to date."
+          else
+            echo "::warning::Action bundle is out of date. Run 'npm run build:action' and commit the changes."
+          fi
+
       - name: Audit dependencies
         run: npm audit

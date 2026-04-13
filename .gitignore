@@ -1,2 +1,5 @@
 node_modules/
-dist/
+
+# Ignore build output, except the bundled GitHub Action (required for Marketplace)
+dist/*
+!dist/action-bundle/

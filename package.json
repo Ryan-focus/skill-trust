@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "build:action": "npm run build && ncc build dist/action/index.js -o dist/action-bundle --source-map --license licenses.txt",
     "dev": "tsx src/cli.ts",
     "test": "vitest",
     "lint": "eslint src/",
@@ -50,6 +51,7 @@
     "@types/node": "^20.0.0",
     "@typescript-eslint/eslint-plugin": "^8.58.1",
     "@typescript-eslint/parser": "^8.58.1",
+    "@vercel/ncc": "^0.38.4",
     "eslint": "^9.0.0",
     "tsx": "^4.7.0",
     "typescript": "^5.4.0",
