@@ -1,0 +1,51 @@
+# Cursor Rules for skill-trust
+
+## Project Overview
+skill-trust is a transparency verifier for Agent Skills. It parses SKILL.md trust declarations and compares them against actual code behavior using AST-aware pattern matching.
+
+## Tech Stack
+- TypeScript (strict mode, ES2022 target)
+- Node.js >= 20 (ESM modules)
+- Vitest for testing
+- Commander.js for CLI
+- chalk for terminal output
+
+## Code Style
+- ESM imports with `.js` extensions (e.g., `from "./types.js"`)
+- Node.js builtins use `node:` prefix (e.g., `import * as fs from "node:fs"`)
+- No `any` — use explicit types from `src/types.ts`
+- Throw `ParseError` for validation failures
+- Pass `file.language` to `scanContent()` for AST-aware scanning
+
+## Architecture
+- `src/types.ts` — all TypeScript interfaces (start here)
+- `src/rules/` — verification rules implementing the `Rule` interface
+- `src/ast/` — context-aware code analysis (strips comments/strings)
+- `src/integrations/` — external scanner adapters (Cisco, Aguara)
+- `tests/` — Vitest tests mirroring src/ structure
+
+## Key Patterns
+- Rules: implement `Rule` interface from types.ts, register in `rules/index.ts`
+- AST scanning: use `scanContent(content, patterns, language)` — 3rd param enables context-aware mode
+- CLI commands: add via `program.command(...)` in `cli.ts`
+- Integrations: follow adapter pattern in `integrations/cisco.ts`
+
+## Testing
+- Run: `npm test` or `npx vitest run`
+- Use `makeSkill()` and `baseTrust()` helpers in test files
+- Every new rule needs tests in `tests/rules.test.ts`
+- E2E tests use `examples/trusted-skill` and `examples/untrusted-skill`
+
+## Important Files
+- `src/types.ts` — data model (TrustDeclaration, ParsedSkill, Rule, Finding, etc.)
+- `src/rules/utils.ts` — core scanning utilities (scanContent, scanFiles)
+- `src/ast/context.ts` — comment/string stripping state machine
+- `src/verifier.ts` — orchestrates rules and computes trust level
+- `TRUST-SPEC.md` — formal specification of the trust declaration schema
+
+## Don'ts
+- Don't add heavy dependencies (no tree-sitter, no babel)
+- Don't use CommonJS — project is ESM only
+- Don't skip the `.js` extension in relative imports
+- Don't scan string literals for network/shell/env rules (use AST-aware scanning)
+- Don't modify `src/types.ts` without updating dependent code
