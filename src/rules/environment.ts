@@ -32,7 +32,7 @@ export const environmentRule: Rule = {
     const findings: Finding[] = [];
 
     for (const file of skill.files) {
-      const matches = scanContent(file.content, ENV_PATTERNS);
+      const matches = scanContent(file.content, ENV_PATTERNS, file.language);
       if (matches.length > 0) {
         const first = matches[0];
         const details = matches
