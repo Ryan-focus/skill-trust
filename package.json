@@ -2,6 +2,7 @@
   "name": "skill-trust",
   "version": "0.1.0",
   "description": "Transparency verifier for Agent Skills — verify that skills declare their behavior honestly.",
+  "type": "module",
   "main": "dist/index.js",
   "bin": {
     "skill-trust": "dist/cli.js"
